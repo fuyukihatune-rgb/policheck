@@ -96,7 +96,8 @@
 | 言語 | TypeScript | 必須要件 |
 | ランタイム | Bun | 社内標準に合わせた |
 | フレームワーク | Hono | 軽量・Cloudflare/Bunと相性が良い |
-| LLM・埋め込み | Google Gemini API | 「無料枠で実装可能」の制約に対し最も実用的。LLMと埋め込みを同一プロバイダで揃え、鍵管理と依存をシンプル化、ランニングコストを抑制 |
+| 埋め込み（RAG） | Google Gemini API（`gemini-embedding-001`） | 無料枠で実用的。768次元・L2正規化し自前コサイン検索に使用。D1のベクトルもこれで構築 |
+| LLM推論（エージェント） | Anthropic Claude API（既定 `claude-sonnet-4-6`） | 当初Gemini単独だったが、`gemini-2.5-flash`無料枠の**日次リクエスト上限**で多数のLLM呼び出しを伴う論点分割エージェントが完走できず、LLMのみClaudeへ移行。`LLM_PROVIDER`環境変数でGeminiにも切替可（プロバイダ抽象化） |
 | エージェント | Tool Useループを自前実装 | 論点分割により複数回の条文検索が必然。LLMの判断→ツール実行→再判断のループを自前制御 |
 | 永続化・検索 | Cloudflare D1 ＋ 自前コサイン類似度 | 小規模データ（数百チャンク）では外部ベクトルDB不要。軽量に完結させる判断 |
 | 連携 | Apps in Claude (MCP Apps) | 課題の本旨。ポリシー作成の文脈にその場で入り込める |
@@ -169,6 +170,7 @@ bun run check samples/bad_policy.md
 - （開発中に追記。消さない）
 - **e-Gov 法令API(v2) のレスポンス形式**：当初 `?response_format=json&elm=1` を付けて叩いたところ `400021「要素（elm）に合致する要素が法令本文に存在しません」` で失敗。`elm` は本文の特定要素だけを抜くパラメータで、全文取得時は不要だった。パラメータなしの素のエンドポイント `GET /api/2/law_data/{law_id}` がデフォルトでJSON全文(約544KB)を返す。→ 条文は `law_full_text` 配下のXML由来タグ木（`Law > LawBody > MainProvision > Chapter > Article`）。本則のみ抽出し185条を整形して `data/personal_info_law.json` に保存（出典URL・取得日・`law_revision_id` をメタに記録し版ズレ・改ざん混入を防止）。
 - **Gemini 埋め込みの無料枠レート制限**：`gemini-embedding-001` の無料枠は **100リクエスト/分**で、**バッチ呼び出し内の各テキストが1リクエストとして計上される**（32件×3バッチ=96は成功、4バッチ目で計128となり `429 RESOURCE_EXHAUSTED`）。つまりバッチ化はHTTP往復を減らすだけでクォータ消費は減らない。→ 対策として埋め込み層(`src/rag/embed.ts`)に「直近1分の送信テキスト数を80件に抑えるクライアント側レート制限」と「429時はAPIが返す `retryDelay` 秒だけ待つリトライ」を実装。条文投入(205チャンク)は約3分で完走。投入は一度きりなので所要時間は許容。
+- **Gemini LLM（`gemini-2.5-flash`）の無料枠 日次上限でエージェントが完走できない**：論点分割エージェントは1点検で「論点分割1回＋各論点の照合（再検索含む）」と多数のLLM呼び出しを行う。`generate_content_free_tier_requests` の **日次上限（このキーで約20/日）** に達し、フル実走（STEP 9/10まで到達）の直後に `429` で停止。`llm.ts`に分間レート制限を入れ・論点を6件に絞っても、日次枠そのものが枯れると当日は回復しない（別モデル`gemini-2.5-flash-lite`は独立枠で可用）。→ **LLM推論のみ Anthropic Claude（`claude-sonnet-4-6`）へ移行**し、`LLM_PROVIDER`環境変数で切替可能なプロバイダ抽象化(`src/agent/llm.ts`)を実装。埋め込みはGeminiのまま（RAGはGemini次元で構築済み、AnthropicにembeddingAPIなし）。Claude経由でbad_policyが**STEP 1〜8まで完走し14リスクを4点セットで出力**、出力スキーマ検証が実LLM出力中の「適法」断定を1件自動除外することも実証。
 
 ---
 
