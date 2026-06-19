@@ -1,10 +1,6 @@
 import { generateJson } from "./llm";
 import { searchRegulation } from "../tools/search_regulation";
-import {
-  buildAssessPrompt,
-  buildIssueSplitPrompt,
-  DEFAULT_ISSUES,
-} from "../prompt/prompts";
+import { buildAssessPrompt, buildIssueSplitPrompt } from "../prompt/prompts";
 import {
   validateCheckPolicyResult,
   normalizeArticleKey,
@@ -33,8 +29,24 @@ const MAX_POLICY_CHARS = 20_000;
 const MAX_SEARCH_ROUNDS = 2;
 /** 1 回の検索で取得する条文数。 */
 const TOP_K = 5;
-/** 処理する論点数の上限（無料枠の LLM 呼び出し数を抑えるため最重要論点に絞る）。 */
-const MAX_ISSUES = 6;
+/** LLM が動的に追加できる固有論点の上限。 */
+const MAX_LLM_ISSUES = 4;
+/** 処理する論点数の全体上限（中核6＋LLM固有の安全キャップ）。 */
+const MAX_ISSUES = 10;
+
+/**
+ * 個情法の中核論点。LLM の分割結果に関わらず必ず評価し、越境移転等の取りこぼしを防ぐ。
+ * key にマッチする論点が LLM 側に既にあれば重複追加しない。
+ */
+const CORE_ISSUES: { id: string; title: string; query: string; key: RegExp }[] =
+  [
+    { id: "core-purpose", title: "利用目的の特定・通知公表", query: "個人情報 利用目的 特定 通知 公表 17条 21条", key: /利用目的/ },
+    { id: "core-3rd", title: "第三者提供の制限（本人同意・例外要件）", query: "個人データ 第三者提供 本人同意 例外 27条", key: /第三者/ },
+    { id: "core-cross", title: "外国にある第三者への提供（越境移転）", query: "外国 第三者 越境移転 28条", key: /外国|越境|国外/ },
+    { id: "core-disclose", title: "保有個人データの開示・訂正・利用停止等の請求対応", query: "保有個人データ 開示 訂正 利用停止 請求 33条 35条", key: /開示|訂正|利用停止|請求/ },
+    { id: "core-contact", title: "問い合わせ・苦情の受付窓口", query: "個人情報 苦情 問い合わせ 窓口 連絡先 40条", key: /苦情|問い合わせ|窓口|連絡先/ },
+    { id: "core-safety", title: "安全管理措置", query: "個人データ 安全管理措置 技術的 組織的 23条", key: /安全管理/ },
+  ];
 
 /** 論点分割の 1 件。 */
 interface Issue {
@@ -58,30 +70,39 @@ function logStep(verbose: boolean, msg: string): void {
   if (verbose) console.log(`[check_policy] ▶ STEP ${++stepCounter}: ${msg}`);
 }
 
-/** LLM 応答から論点配列を取り出す。失敗時は既定論点にフォールバック。 */
+/**
+ * LLM 応答の論点に、個情法の中核6論点を必ず合流させる。
+ * LLM の分割（ポリシー固有の論点）を活かしつつ、中核論点の取りこぼしを防ぐ。
+ */
 function parseIssues(raw: unknown): Issue[] {
   const arr = (raw as { issues?: unknown })?.issues;
-  if (Array.isArray(arr)) {
-    const issues = arr
-      .filter(
-        (x): x is Issue =>
-          !!x &&
-          typeof (x as Issue).title === "string" &&
-          typeof (x as Issue).query === "string",
-      )
-      .map((x, i) => ({
-        id: typeof x.id === "string" && x.id ? x.id : `issue-${i + 1}`,
-        title: x.title,
-        query: x.query,
-      }));
-    if (issues.length > 0) return issues.slice(0, MAX_ISSUES);
+  const llm: Issue[] = Array.isArray(arr)
+    ? arr
+        .filter(
+          (x): x is Issue =>
+            !!x &&
+            typeof (x as Issue).title === "string" &&
+            typeof (x as Issue).query === "string",
+        )
+        .map((x, i) => ({
+          id: typeof x.id === "string" && x.id ? x.id : `issue-${i + 1}`,
+          title: x.title,
+          query: x.query,
+        }))
+        .slice(0, MAX_LLM_ISSUES)
+    : [];
+
+  // 中核論点を合流（key にマッチする論点が既にあれば重複追加しない）
+  const merged: Issue[] = [...llm];
+  for (const core of CORE_ISSUES) {
+    const covered = merged.some(
+      (i) => core.key.test(i.title) || core.key.test(i.query),
+    );
+    if (!covered) {
+      merged.push({ id: core.id, title: core.title, query: core.query });
+    }
   }
-  // フォールバック: 既定論点で続行（点検を止めない）
-  return DEFAULT_ISSUES.map((title, i) => ({
-    id: `default-${i + 1}`,
-    title,
-    query: title,
-  }));
+  return merged.slice(0, MAX_ISSUES);
 }
 
 /** 1 論点を評価する。検索→照合→（不十分なら）再検索のループ。 */
@@ -209,9 +230,23 @@ export async function checkPolicy(
       `最終出力の検証に失敗: ${finalCheck.errors.map((e) => e.message).join(", ")}`,
     );
   }
+  // 根拠条文に法令名を付与（どの法律の条文かを明示。表示の一貫性）
+  const out = finalCheck.value!;
+  out.risks = out.risks.map((r) => ({
+    ...r,
+    articles: r.articles.map(withLawName),
+  }));
+
   log(
     verbose,
     `✅ 点検完了: 提示 ${surfacedRisks.length} 件（検証除外 ${allRisks.length - validRisks.length} 件 / low非表示 ${droppedLow} 件）`,
   );
-  return finalCheck.value!;
+  return out;
+}
+
+/** 条文に法令名（個人情報保護法）を付与する。既に法令名を含む場合はそのまま。 */
+function withLawName(article: string): string {
+  const a = article.trim();
+  if (/法\s*第|個人情報保護法|個情法/.test(a)) return a; // 既に法令名あり
+  return `個人情報保護法 ${a}`;
 }
