@@ -11,9 +11,9 @@
 | 論点分割エージェント（Tool Useループ）＋4点セット出力 | ✅ 動作 |
 | 断定禁止・幻覚条文排除の出力スキーマ検証／過検出抑制 | ✅ 動作 |
 | CLI（`bun run check <file>`）＋サンプル3種 | ✅ 動作 |
-| MCP App（Apps in Claude）連携 | ⏳ 実装予定（退避戦略：CLI完成→MCPを薄く被せる） |
+| MCP サーバー（3ツールを公開、Claude Desktop等から呼び出し） | ✅ 動作（stdio・ツール公開） |
 
-現時点では **CLI でエンドツーエンドに動作**する。MCP連携は最後の統合レイヤーとして実装予定。
+**CLI でも MCP 経由でもエンドツーエンドに動作**する。MCP Apps の UI（`ui://`）はスコープ外（CLAUDE.mdの「凝ったUIを作らない」方針）とし、ツール公開に絞った。
 
 ---
 
@@ -238,6 +238,31 @@ bun run check samples/tricky_policy.md    # 地味な穴の検出を確認
 ```
 
 「〜の可能性」「〜になりうる」の蓋然性トーンで統一され、根拠条文はRAGで実取得した範囲のみ、免責フッターが必ず付く。
+
+### MCP サーバーとして使う（Claude Desktop 等）
+
+標準MCPサーバー(stdio)として `check_policy` / `search_regulation` / `add_regulation` を公開する。
+
+```bash
+bun run mcp   # stdio で起動（ホストから接続）
+```
+
+Claude Desktop の `claude_desktop_config.json` に登録する例：
+
+```json
+{
+  "mcpServers": {
+    "policheck": {
+      "command": "bun",
+      "args": ["run", "/絶対パス/policheck/src/mcp/server.ts"]
+    }
+  }
+}
+```
+
+- 事前に `bun run src/rag/fetch_law.ts` と `bun run src/tools/add_regulation.ts` でDBを構築しておくこと。
+- サーバーは起動時にプロジェクトルートへ移動し `.env` を自前ロードするため、ホストが任意の作業ディレクトリから起動しても条文DB・APIキーを正しく解決する。
+- stdio は stdout を JSON-RPC 専用に使うため、内部ログはすべて stderr に出力している（プロトコルを汚さない）。
 
 ---
 

@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "bun run src/cli.ts"
+    "check": "bun run src/cli.ts",
+    "mcp": "bun run src/mcp/server.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -14,6 +15,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.9.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "hono": "^4.12.26"
   }
 }
