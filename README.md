@@ -167,6 +167,8 @@ bun run check samples/bad_policy.md
 ## 8. 詰まった点・解決プロセス（デモ用・随時記録）
 
 - （開発中に追記。消さない）
+- **e-Gov 法令API(v2) のレスポンス形式**：当初 `?response_format=json&elm=1` を付けて叩いたところ `400021「要素（elm）に合致する要素が法令本文に存在しません」` で失敗。`elm` は本文の特定要素だけを抜くパラメータで、全文取得時は不要だった。パラメータなしの素のエンドポイント `GET /api/2/law_data/{law_id}` がデフォルトでJSON全文(約544KB)を返す。→ 条文は `law_full_text` 配下のXML由来タグ木（`Law > LawBody > MainProvision > Chapter > Article`）。本則のみ抽出し185条を整形して `data/personal_info_law.json` に保存（出典URL・取得日・`law_revision_id` をメタに記録し版ズレ・改ざん混入を防止）。
+- **Gemini 埋め込みの無料枠レート制限**：`gemini-embedding-001` の無料枠は **100リクエスト/分**で、**バッチ呼び出し内の各テキストが1リクエストとして計上される**（32件×3バッチ=96は成功、4バッチ目で計128となり `429 RESOURCE_EXHAUSTED`）。つまりバッチ化はHTTP往復を減らすだけでクォータ消費は減らない。→ 対策として埋め込み層(`src/rag/embed.ts`)に「直近1分の送信テキスト数を80件に抑えるクライアント側レート制限」と「429時はAPIが返す `retryDelay` 秒だけ待つリトライ」を実装。条文投入(205チャンク)は約3分で完走。投入は一度きりなので所要時間は許容。
 
 ---
 
