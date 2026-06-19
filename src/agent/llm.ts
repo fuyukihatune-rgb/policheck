@@ -92,6 +92,7 @@ class AnthropicProvider implements LlmProvider {
       body: JSON.stringify({
         model: this.model,
         max_tokens: 4096,
+        temperature: 0, // 点検結果の再現性を最優先（同じ入力→同じ出力に近づける）
         system:
           "あなたは指定されたJSONスキーマだけを返すアシスタントです。前後の説明文やマークダウンの囲い(```)を一切付けず、JSONオブジェクトのみを出力してください。",
         messages: [{ role: "user", content: prompt }],
