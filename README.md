@@ -12,8 +12,10 @@
 | 断定禁止・幻覚条文排除の出力スキーマ検証／過検出抑制 | ✅ 動作 |
 | CLI（`bun run check <file>`）＋サンプル3種 | ✅ 動作 |
 | MCP サーバー（3ツールを公開、Claude Desktop等から呼び出し） | ✅ 動作（stdio・ツール公開） |
+| HTTP API（Hono / `POST /check`・`/disclaimer`）＋コンテナ化 | ✅ 動作（Dockerfile・[DEPLOY.md](./DEPLOY.md)） |
+| ユニットテスト（`bun test`） | ✅ 16件パス |
 
-**CLI でも MCP 経由でもエンドツーエンドに動作**する。MCP Apps の UI（`ui://`）はスコープ外（CLAUDE.mdの「凝ったUIを作らない」方針）とし、ツール公開に絞った。
+**CLI / MCP / HTTP の3エントリでエンドツーエンドに動作**し、いずれも同一エージェント（`check_policy`）を共有する。MCP Apps の UI（`ui://`）はスコープ外（「凝ったUIを作らない」方針）とし、ツール公開に絞った。デプロイ用の構成（Dockerfile / `render.yaml` / `DEPLOY.md`）も用意。
 
 ---
 
@@ -76,7 +78,7 @@
 | ツール | 役割 |
 |---|---|
 | `check_policy` | ポリシー文を受け取り、**論点分割エージェントループ**を回して整合観点を構造化して返す（メイン） |
-| `add_regulation` | 法令テキストを登録（チャンク化→埋め込み→D1保存） |
+| `add_regulation` | 法令テキストを登録（チャンク化→埋め込み→DB保存） |
 | `search_regulation` | 条文をあいまい検索（エージェントが内部でも使用） |
 
 ### `check_policy` の出力（4点セット）
@@ -111,29 +113,29 @@ flowchart TD
     SCHEMA --> OUT["4点セット＋免責フッター"]
 ```
 
+エージェントのループ詳細：
+
 ```
-[Claude チャットUI]
-      │  (MCP Apps)
-      ▼
-[MCP サーバー (Hono / Bun)]
+[利用者 / Claude チャット]
+      │  CLI・MCP(stdio)・HTTP(Hono) のいずれかから
       ▼
 [エージェント (check_policy)]
   1. ポリシー文を受け取る
-  2. LLMが「個情法上チェックすべき論点」に分解
-       （利用目的の特定／第三者提供／開示等の請求対応／
-         安全管理措置／問い合わせ窓口／越境移転 …）
+  2. LLMが論点に分解。さらに個情法の中核6論点
+       （利用目的／第三者提供／越境移転／開示等請求／問い合わせ窓口／安全管理）
+       を常に評価し、LLM固有論点を合流（取りこぼし防止）
   3. 各論点について：
        → search_regulation で該当条文を検索（ツール呼び出し）
        → ポリシー内に該当記述があるか照合
-       → 不十分なら別キーワードで再検索  ← ここでループが回る
-  4. 全論点を走査 → 4点セットで構造化出力
+       → 不十分ならLLM提案キーワードで再検索  ← ここでループが回る
+  4. 全論点を走査 → 出力スキーマ検証 → 4点セットで構造化出力
       │
       ▼
-  [RAG: D1に保存した条文を埋め込み類似度で検索]
+  [RAG: DBに保存した条文を埋め込み類似度で検索]
 ```
 
 各ステップ（論点・思考・ツール呼び出し・結果）はログ出力し、思考プロセスを可視化する。
-現在のエントリは CLI（`src/cli.ts`）。上図の `[MCP サーバー]` 層は実装予定で、同じエージェント（`check_policy`）を薄く被せる構成にする。
+エントリは CLI（`src/cli.ts`）／ MCP サーバー（`src/mcp/server.ts`・stdio）／ HTTP サーバー（`src/server.ts`・Hono）の3つで、いずれも同じエージェント（`check_policy`）を共有する。
 
 ### ディレクトリ構成（責務分離）
 
@@ -153,7 +155,7 @@ src/
 │   ├── prompts.ts        論点分割／照合プロンプト（デリミタ分離・過検出抑制）
 │   └── schema.ts         4点セット型・検証（断定語/幻覚条文の拒否）・免責
 ├── db/
-│   └── db.ts             D1ローカル（bun:sqlite）。regulationsテーブル
+│   └── db.ts             ローカルDB（bun:sqlite, D1互換）。regulationsテーブル
 └── cli.ts        CLIエントリ（bun run check）
 data/             取得した法令データ（出典・取得日・版IDを記録）
 samples/          検証用ポリシー（bad / decent / tricky）
@@ -166,10 +168,10 @@ samples/          検証用ポリシー（bad / decent / tricky）
 | 言語 | TypeScript | 必須要件 |
 | ランタイム | Bun | TypeScriptをそのまま高速に実行でき、ビルド・テスト・実行が一体で軽量 |
 | フレームワーク | Hono | 軽量・Cloudflare/Bunと相性が良い |
-| 埋め込み（RAG） | Google Gemini API（`gemini-embedding-001`） | 無料枠で実用的。768次元・L2正規化し自前コサイン検索に使用。D1のベクトルもこれで構築 |
+| 埋め込み（RAG） | Google Gemini API（`gemini-embedding-001`） | 無料枠で実用的。768次元・L2正規化し自前コサイン検索に使用。DBのベクトルもこれで構築 |
 | LLM推論（エージェント） | Anthropic Claude API（既定 `claude-sonnet-4-6`） | 当初Gemini単独だったが、`gemini-2.5-flash`無料枠の**日次リクエスト上限**で多数のLLM呼び出しを伴う論点分割エージェントが完走できず、LLMのみClaudeへ移行。`LLM_PROVIDER`環境変数でGeminiにも切替可（プロバイダ抽象化） |
 | エージェント | Tool Useループを自前実装 | 論点分割により複数回の条文検索が必然。LLMの判断→ツール実行→再判断のループを自前制御 |
-| 永続化・検索 | Cloudflare D1 ＋ 自前コサイン類似度 | 小規模データ（数百チャンク）では外部ベクトルDB不要。軽量に完結させる判断 |
+| 永続化・検索 | ローカルは bun:sqlite（SQLite, Cloudflare D1互換）＋ 自前コサイン類似度 | 小規模データ（数百チャンク）では外部ベクトルDB不要。条文DBは同梱しデプロイ即起動。スケール時はD1へ移行可 |
 | 連携 | Apps in Claude (MCP Apps) | ポリシー作成・議論の文脈にその場で入り込める |
 
 > 本番でスケール／精度を優先する場合は、ベクトルDB（Vectorize等）への移行や精度重視LLMへの切替を想定。現状は無料枠・低コストで動かすことを優先した構成。
@@ -216,15 +218,25 @@ bun install
 #   ANTHROPIC_API_KEY=...     # LLM推論用。必須（LLM_PROVIDER=anthropic 既定）
 #   ANTHROPIC_MODEL=claude-sonnet-4-6   # 任意（既定値）
 
-# 法令データの取得（e-Gov 個人情報保護法 → data/personal_info_law.json）
+# 法令データの取得＋DB構築（初回のみ。条文DB policheck.db は同梱済みなので通常は不要）
 bun run src/rag/fetch_law.ts
-
-# 条文をチャンク化・埋め込み・DB保存（一度だけ）
 bun run src/tools/add_regulation.ts
 
-# 一次点検を実行
+# 一次点検を実行（CLI）
 bun run check samples/bad_policy.md
 ```
+
+主なコマンド：
+
+| コマンド | 内容 |
+|---|---|
+| `bun run check <file>` | ポリシー文を一次点検（CLI） |
+| `bun run mcp` | MCP サーバー起動（stdio） |
+| `bun run serve` | HTTP API 起動（Hono / 既定 `:8787`） |
+| `bun run preflight` | 鍵・DB・サンプル・API疎通の事前確認 |
+| `bun test` | ユニットテスト |
+
+デプロイ手順は **[DEPLOY.md](./DEPLOY.md)**（Render Blueprint / Fly.io / Docker）。
 
 ---
 
@@ -250,7 +262,7 @@ bun run check samples/tricky_policy.md    # 地味な穴の検出を確認
 |---|---|---|
 | `bad_policy.md` | **6件（すべて高）** | 利用目的/第三者提供/越境移転/開示請求/問い合わせ窓口/安全管理 の中核欠如を検出 |
 | `decent_policy.md` | **0件** | 一通り揃っているため黙る（過検出しない） |
-| `tricky_policy.md` | **5件（最上位2件が高=越境移転）** | 一見揃うが第28条の越境移転が抜けている点を主軸に検出 |
+| `tricky_policy.md` | **2件（最上位が高=越境移転）** | 一見揃うが第28条の越境移転が抜けている点を主軸に検出 |
 
 > 「出すべき時に出し、出すべきでない時は黙る」── 件数と重大度で `bad`／`decent`／`tricky` を明確に区別できる。誤検出乱発は法務ツールの信頼を損なうため、照合プロンプトで「中核的義務の欠落のみを挙げ、付随的な記載改善は挙げない」基準を課し、`low` 重大度は一次点検の閾値未満として非表示にしている。
 
