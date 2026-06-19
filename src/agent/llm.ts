@@ -30,6 +30,15 @@ function parseRetryDelayMs(err: unknown): number | null {
   return null;
 }
 
+/** 認証エラーや 4xx（429除く）はリトライしても無駄なので即時失敗させる。 */
+function isNonRetryable(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (/http\s*4(00|01|03|04|13|22)\b/.test(msg)) return true;
+  return /api[_ ]?key|api_key_invalid|invalid x-api-key|unauthenticated|permission_denied|authentication/.test(
+    msg,
+  );
+}
+
 async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -37,6 +46,8 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
       return await fn();
     } catch (err) {
       lastErr = err;
+      // 非リトライ対象（鍵ミス等）は即座に投げる
+      if (isNonRetryable(err)) throw err;
       if (attempt < MAX_RETRIES) {
         const wait =
           parseRetryDelayMs(err) ?? BASE_BACKOFF_MS * 2 ** (attempt - 1);

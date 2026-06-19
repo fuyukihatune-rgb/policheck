@@ -135,6 +135,18 @@ app.post("/check", async (c) => {
 const mcpTransports = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
 app.all("/mcp", async (c) => {
+  // /check と同様に有料LLMを呼ぶため、IP単位の簡易レート制限を適用する。
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+    c.req.header("x-real-ip") ??
+    "local";
+  if (rateLimited(ip)) {
+    return c.json(
+      { jsonrpc: "2.0", id: null, error: { code: -32000, message: "rate limited" } },
+      429,
+    );
+  }
+
   const sid = c.req.header("mcp-session-id");
   let transport = sid ? mcpTransports.get(sid) : undefined;
 

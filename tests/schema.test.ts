@@ -100,4 +100,34 @@ describe("normalizeArticleKey", () => {
   test("法令名付きでも条番号を抽出", () => {
     expect(normalizeArticleKey("個人情報保護法 第28条")).toBe("第28条");
   });
+  test("枝番（条の○）を保持し、別条として区別する", () => {
+    expect(normalizeArticleKey("第二十八条の二")).toBe("第28条の2");
+    expect(normalizeArticleKey("第28条の2")).toBe("第28条の2");
+    // 枝番付きと基底条は別キー（幻覚グラウンディングが潰れない）
+    expect(normalizeArticleKey("第28条の2")).not.toBe(normalizeArticleKey("第28条"));
+  });
+});
+
+describe("FORBIDDEN（断定語の過剰一致を避ける）", () => {
+  const base = {
+    perspective: "x",
+    articles: ["第27条"],
+    consequence: "指導・勧告等の対象になりうる",
+    severity: "medium" as const,
+  };
+  const allowed = new Set(["第27条"]);
+  test("「適法性／違法性」は分析的名詞として許容される", () => {
+    const r = validateCheckPolicyResult(
+      { risks: [{ ...base, reason: "適法性の説明が不足している可能性がある" }] },
+      { allowedArticles: allowed },
+    );
+    expect(r.valid).toBe(true);
+  });
+  test("「違法です」等の断定は引き続き拒否される", () => {
+    const r = validateCheckPolicyResult(
+      { risks: [{ ...base, reason: "このポリシーは違法です" }] },
+      { allowedArticles: allowed },
+    );
+    expect(r.valid).toBe(false);
+  });
 });

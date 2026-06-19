@@ -59,10 +59,12 @@ export interface ValidationError {
  * 断定・脅しに当たる禁止表現。出力に含まれていたら弾く。
  * 「違法でない」等の否定形も拾うため、語そのものの混入を検出する方針。
  */
+// 「適法性／違法性／合法性」のような“〜性”の分析的名詞は正当な観点なので除外し、
+// 断定（適法です／違法 等）のみを弾く（否定後読み (?!性)）。
 const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
-  { pattern: /適法/, label: "「適法」の断定" },
-  { pattern: /違法/, label: "「違法」の断定" },
-  { pattern: /合法/, label: "「合法」の断定" },
+  { pattern: /適法(?!性)/, label: "「適法」の断定" },
+  { pattern: /違法(?!性)/, label: "「違法」の断定" },
+  { pattern: /合法(?!性)/, label: "「合法」の断定" },
   { pattern: /(?:罰金|過料|科料)[^。]{0,8}?\d/, label: "確定的な金額の脅し" },
   { pattern: /必ず(?:罰|処罰|摘発)/, label: "確定的な処罰の断定" },
 ];
@@ -76,15 +78,20 @@ function normalizeArticleKey(s: string): string {
     〇: "0", 一: "1", 二: "2", 三: "3", 四: "4", 五: "5",
     六: "6", 七: "7", 八: "8", 九: "9",
   };
-  // 「第二十七条」→ 桁構造を踏まえて変換
-  const m = s.match(/第([〇一二三四五六七八九十百]+)条/);
+  // 「第二十七条」「第二十八条の二」→ 枝番（条の○）も保持して別条として扱う
+  const m = s.match(
+    /第([〇一二三四五六七八九十百]+)条(?:の([〇一二三四五六七八九十百]+))?/,
+  );
   if (m) {
     const num = kanjiToNumber(m[1]!);
-    if (num !== null) return `第${num}条`;
+    if (num !== null) {
+      const branch = m[2] ? kanjiToNumber(m[2]) : null;
+      return branch !== null ? `第${num}条の${branch}` : `第${num}条`;
+    }
   }
-  // アラビア数字表記はそのまま条番号部分を抽出
-  const a = s.match(/第\s*(\d+)\s*条/);
-  if (a) return `第${a[1]}条`;
+  // アラビア数字表記（第28条／第28条の2）
+  const a = s.match(/第\s*(\d+)\s*条(?:の\s*(\d+))?/);
+  if (a) return a[2] ? `第${a[1]}条の${a[2]}` : `第${a[1]}条`;
   return s.replace(/\s/g, "");
 }
 

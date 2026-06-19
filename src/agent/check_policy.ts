@@ -143,9 +143,12 @@ async function assessIssue(
       `  🧠 照合: sufficient=${parsed.sufficient !== false} / 暫定リスク${risks.length}件`,
     );
 
-    // この論点の暫定リスクを保持（最後のラウンド結果を採用）
-    collected.length = 0;
-    collected.push(...risks);
+    // この論点の暫定リスクを保持。再検索ラウンドが空を返したら直前ラウンドの
+    // 結果を捨てない（本物の抜けを取りこぼさない）。risksがある時のみ置き換える。
+    if (risks.length > 0) {
+      collected.length = 0;
+      collected.push(...risks);
+    }
 
     // --- 再検索の判断（LLM の判断でループ）---
     const needMore =
