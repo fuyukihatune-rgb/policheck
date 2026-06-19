@@ -6,6 +6,7 @@
   "scripts": {
     "check": "bun run src/cli.ts",
     "mcp": "bun run src/mcp/server.ts",
+    "serve": "bun run src/server.ts",
     "preflight": "bun run src/preflight.ts"
   },
   "devDependencies": {
