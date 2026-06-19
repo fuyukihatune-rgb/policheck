@@ -1,0 +1,16 @@
+# Render Blueprint（https://render.com）
+# New → Blueprint → このリポジトリを接続すると本定義が読み込まれる。
+# GEMINI_API_KEY / ANTHROPIC_API_KEY はダッシュボードで入力（sync:false）。
+services:
+  - type: web
+    name: policheck
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

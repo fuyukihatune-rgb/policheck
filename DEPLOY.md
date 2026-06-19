@@ -44,10 +44,14 @@ fly deploy
 
 ## Render（GitHub連携・Docker）
 
-1. New → Web Service → リポジトリを接続（Runtime: Docker）
-2. Environment に `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` を設定
-3. Health Check Path に `/healthz`
-4. デプロイ後、公開URLの `/` `/disclaimer` `/check` を確認
+クレジットカード不要・ブラウザ完結。同梱の `render.yaml`（Blueprint）を使う。
+
+1. https://render.com に GitHub でサインイン
+2. New → **Blueprint** → 本リポジトリ(`policheck`)を選択（`render.yaml` を自動読込）
+3. `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` を入力して Apply
+4. ビルド完了後（数分）、公開URLの `/healthz` `/disclaimer` `/check` を確認
+
+> Free プランは無操作で休止し、次回アクセス時にコールドスタート（数十秒）する。デモ前に一度叩いて温めておく。
 
 ## 注意（本番運用）
 
