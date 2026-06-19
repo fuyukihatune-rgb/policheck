@@ -1,5 +1,7 @@
 import { Hono } from "hono";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { checkPolicy } from "./agent/check_policy";
+import { createMcpServer } from "./mcp/tools";
 import { DISCLAIMER_FOOTER } from "./prompt/schema";
 import { db } from "./db/db";
 
@@ -74,6 +76,7 @@ app.get("/api", (c) =>
       "プライバシーポリシーを個人情報保護法に照らして一次点検するAPI（法的助言ではありません）",
     endpoints: {
       "POST /check": "{ policyText: string } → 4点セットの点検結果",
+      "ALL /mcp": "リモート MCP（Streamable HTTP）。check_policy 等のツールを公開",
       "GET /sample/:name": "検証用サンプル（bad/decent/tricky）",
       "GET /disclaimer": "免責事項",
       "GET /healthz": "ヘルスチェック",
@@ -124,6 +127,34 @@ app.post("/check", async (c) => {
       500,
     );
   }
+});
+
+// --- リモート MCP エンドポイント（Streamable HTTP / セッション管理） ---
+// Claude のリモートMCPコネクタや MCP クライアントから接続できる。ツール定義は
+// stdio 版（src/mcp/server.ts）と共有（src/mcp/tools.ts）。
+const mcpTransports = new Map<string, WebStandardStreamableHTTPServerTransport>();
+
+app.all("/mcp", async (c) => {
+  const sid = c.req.header("mcp-session-id");
+  let transport = sid ? mcpTransports.get(sid) : undefined;
+
+  if (!transport) {
+    // 新規セッション（initialize 要求）。セッションIDを発行し、以降ルーティングする。
+    transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (id) => {
+        if (transport) mcpTransports.set(id, transport);
+      },
+    });
+    transport.onclose = () => {
+      const id = transport?.sessionId;
+      if (id) mcpTransports.delete(id);
+    };
+    const mcp = createMcpServer();
+    await mcp.connect(transport);
+  }
+
+  return transport.handleRequest(c.req.raw);
 });
 
 app.get("/disclaimer", (c) => {

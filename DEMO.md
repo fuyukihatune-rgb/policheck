@@ -84,9 +84,32 @@ bun run mcp
 
 ---
 
-## MCP サーバーとして接続する（Claude Desktop 等）
+## MCP App デモ（Apps in Claude）
 
-`claude_desktop_config.json` に登録：
+公開ツール：`check_policy` / `search_regulation` / `add_regulation`。同じツール定義を
+**stdio（ローカル）** と **Streamable HTTP（リモート）** の両トランスポートで提供する。
+
+### A. リモートMCP（デプロイ済み・セットアップ最小・デモ向き）
+
+エンドポイント：**`https://policheck.onrender.com/mcp`**（Streamable HTTP）
+
+- Claude の「リモートMCP / カスタムコネクタ」対応クライアントから上記URLを登録すると、
+  チャットから `check_policy` 等を直接呼べる。
+- 接続確認（MCPクライアントでの疎通例）:
+  ```bash
+  bunx @modelcontextprotocol/inspector   # GUIインスペクタでURLを入力して接続
+  ```
+
+### B. ローカル: Claude Code に登録（最も手軽）
+
+```bash
+claude mcp add policheck -- bun run /絶対パス/policheck/src/mcp/server.ts
+# 以後 Claude Code のセッションから check_policy 等が使える
+```
+
+### C. ローカル: Claude Desktop に登録
+
+`claude_desktop_config.json`：
 
 ```json
 {
@@ -99,8 +122,9 @@ bun run mcp
 }
 ```
 
-公開ツール：`check_policy` / `search_regulation` / `add_regulation`。
-サーバーは起動時にプロジェクトルートへ移動し `.env` を自前ロードするため、ホストが任意の作業ディレクトリから起動しても条文DB・APIキーを解決する。
+stdio サーバーは起動時にプロジェクトルートへ移動し `.env` を自前ロードするため、ホストが
+任意の作業ディレクトリから起動しても条文DB・APIキーを解決する。デモでは「ポリシーを貼って
+`check_policy` を呼ぶ → 4点セットがチャットに返る」流れを見せる。
 
 ---
 
