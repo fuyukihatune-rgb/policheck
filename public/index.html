@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PoliCheck — プライバシーポリシー一次点検</title>
+<meta name="description" content="プライバシーポリシーを個人情報保護法に照らして一次点検（法的助言ではありません）" />
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#1f2733; --muted:#667085; --line:#e6e8ec;
+    --brand:#1e3a8a; --brand2:#2563eb; --accent:#0ea5a8;
+    --high:#dc2626; --high-bg:#fef2f2; --med:#d97706; --med-bg:#fffbeb; --low:#16a34a; --low-bg:#f0fdf4;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;line-height:1.7}
+  a{color:var(--brand2)}
+  header.top{background:linear-gradient(135deg,#13245e,#1e3a8a);color:#fff;padding:26px 20px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px}
+  header.top .wrap{padding:0 20px}
+  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .brand h1{font-size:24px;margin:0;letter-spacing:.5px}
+  .brand .tag{color:#c7d2fe;font-size:14px}
+  .lead{margin:10px 0 0;color:#dbe3ff;font-size:14px;max-width:64ch}
+  main{padding:24px 0 60px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .row .label{font-weight:600;font-size:14px}
+  .samples{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .chip-btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;
+    padding:5px 12px;font-size:13px;cursor:pointer;transition:.15s}
+  .chip-btn:hover{border-color:var(--brand2);color:var(--brand2)}
+  textarea{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line);border-radius:10px;
+    padding:14px;font-size:14px;font-family:inherit;line-height:1.7;color:var(--ink);background:#fcfcfd}
+  textarea:focus{outline:none;border-color:var(--brand2);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  .actions{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
+  .btn{background:var(--brand2);color:#fff;border:none;border-radius:10px;padding:11px 22px;font-size:15px;
+    font-weight:600;cursor:pointer;transition:.15s}
+  .btn:hover{background:#1d4ed8}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .status{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .status .err{color:var(--high)}
+  .spinner{width:16px;height:16px;border:2px solid #cbd5e1;border-top-color:var(--brand2);border-radius:50%;
+    display:inline-block;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #result{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  .summary{font-weight:700;font-size:15px;color:var(--ink)}
+  .empty{background:var(--low-bg);border:1px solid #bbf7d0;border-radius:12px;padding:16px 18px}
+  .empty p{margin:.4em 0 0;color:#3f6212;font-size:14px}
+  .card{background:#fff;border:1px solid var(--line);border-left-width:5px;border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+  .card.sev-high{border-left-color:var(--high)}
+  .card.sev-med{border-left-color:var(--med)}
+  .card.sev-low{border-left-color:var(--low)}
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .card-head h3{margin:0;font-size:16px;line-height:1.5}
+  .badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .badge.sev-high{background:var(--high-bg);color:var(--high)}
+  .badge.sev-med{background:var(--med-bg);color:var(--med)}
+  .badge.sev-low{background:var(--low-bg);color:var(--low)}
+  .arts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .chip{background:#eef2ff;color:#3730a3;border-radius:6px;padding:3px 9px;font-size:13px;font-weight:600}
+  .field{margin-top:8px}
+  .flabel{display:inline-block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:2px}
+  .field p{margin:0;font-size:14px;color:#2b3543}
+  .disclaimer{margin-top:6px;font-size:12.5px;color:var(--muted);background:#fafafa;border:1px dashed var(--line);
+    border-radius:10px;padding:12px 14px}
+  footer{color:var(--muted);font-size:13px;text-align:center;padding:24px}
+  .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>PoliCheck</h1>
+      <span class="tag">プライバシーポリシー一次点検</span>
+    </div>
+    <p class="lead">
+      プライバシーポリシーを<strong>個人情報保護法</strong>に照らして一次点検します。論点を洗い出し、
+      関連条文とリスクを提示します。<strong>適法・違法の判断はしません</strong>（法的助言ではありません）。
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <div class="row">
+      <span class="label">ポリシー本文</span>
+      <div class="samples">
+        <span style="color:var(--muted);font-size:13px;align-self:center">サンプル:</span>
+        <button class="chip-btn" data-sample="bad">穴だらけ</button>
+        <button class="chip-btn" data-sample="decent">標準的</button>
+        <button class="chip-btn" data-sample="tricky">ひっかけ</button>
+      </div>
+    </div>
+    <textarea id="policy" placeholder="ここにプライバシーポリシーの本文を貼り付けてください。&#10;サンプルボタンで例を読み込めます。"></textarea>
+    <div class="actions">
+      <button class="btn" id="run">一次点検する</button>
+      <div class="status" id="status"></div>
+    </div>
+    <p class="hint">点検には20〜40秒ほどかかります（論点分割→条文検索→照合のループ）。</p>
+  </section>
+
+  <div id="result"></div>
+</main>
+
+<footer>
+  <a href="/disclaimer">免責事項</a> ・ AIによる一次点検であり、最終確認は専門家・一次情報（e-Gov等）で。
+</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const ta = $("#policy"), runBtn = $("#run"), statusEl = $("#status"), resultEl = $("#result");
+const SEV = { high:["高","sev-high"], medium:["中","sev-med"], low:["低","sev-low"] };
+const ORDER = { high:0, medium:1, low:2 };
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+document.querySelectorAll("[data-sample]").forEach(b => b.addEventListener("click", () => loadSample(b.dataset.sample)));
+runBtn.addEventListener("click", run);
+
+async function loadSample(name){
+  statusEl.innerHTML = '<span class="spinner"></span> サンプル読込中…';
+  try {
+    const r = await fetch("/sample/" + name);
+    if(!r.ok) throw new Error("読込失敗");
+    ta.value = await r.text();
+    resultEl.innerHTML = "";
+    statusEl.textContent = "";
+  } catch(e){ statusEl.innerHTML = '<span class="err">サンプル読込に失敗しました</span>'; }
+}
+
+let timer = null;
+async function run(){
+  const policyText = ta.value.trim();
+  if(!policyText){ statusEl.innerHTML = '<span class="err">ポリシー本文を入力してください</span>'; return; }
+  runBtn.disabled = true; resultEl.innerHTML = "";
+  let sec = 0;
+  statusEl.innerHTML = '<span class="spinner"></span> 点検中…（<span id="elapsed">0</span>秒）';
+  timer = setInterval(() => { sec++; const e = $("#elapsed"); if(e) e.textContent = sec; }, 1000);
+  try {
+    const r = await fetch("/check", {
+      method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ policyText })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+    render(data);
+    statusEl.textContent = "";
+  } catch(e){
+    statusEl.innerHTML = '<span class="err">エラー: ' + esc(e.message) + '</span>';
+  } finally {
+    clearInterval(timer); runBtn.disabled = false;
+  }
+}
+
+function render(data){
+  const risks = (data.risks || []).slice().sort((a,b) => ORDER[a.severity] - ORDER[b.severity]);
+  let html = "";
+  if(risks.length === 0){
+    html = '<div class="empty"><strong>提示された観点：0件</strong>'
+      + '<p>大きな懸念観点は検出されませんでした。ただし「検出なし」は「問題がないこと」を意味しません。</p></div>';
+  } else {
+    html = '<div class="summary">' + risks.length + ' 件の観点を提示</div>';
+    html += risks.map(card).join("");
+  }
+  html += '<div class="disclaimer">' + esc(data.disclaimer || "") + '</div>';
+  resultEl.innerHTML = html;
+  resultEl.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function card(r){
+  const [label, cls] = SEV[r.severity] || ["?","sev-med"];
+  const arts = (r.articles || []).map(a => '<span class="chip">' + esc(a) + '</span>').join("");
+  return '<article class="card ' + cls + '">'
+    + '<div class="card-head"><span class="badge ' + cls + '">' + label + '</span>'
+    + '<h3>' + esc(r.perspective) + '</h3></div>'
+    + '<div class="arts">' + arts + '</div>'
+    + '<div class="field"><span class="flabel">なぜリスクか</span><p>' + esc(r.reason) + '</p></div>'
+    + '<div class="field"><span class="flabel">放置した場合の想定リスク</span><p>' + esc(r.consequence) + '</p></div>'
+    + '</article>';
+}
+</script>
+</body>
+</html>

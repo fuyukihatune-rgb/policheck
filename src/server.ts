@@ -37,6 +37,14 @@ const disclaimerMd = (await Bun.file("DISCLAIMER.md").exists())
   ? await Bun.file("DISCLAIMER.md").text()
   : DISCLAIMER_FOOTER;
 
+// フロントエンド（単一ページ）を起動時に読み込む
+const indexHtml = (await Bun.file("public/index.html").exists())
+  ? await Bun.file("public/index.html").text()
+  : "<h1>PoliCheck</h1><p>UI が見つかりません。</p>";
+
+/** 利用可能なサンプル名 */
+const SAMPLES = new Set(["bad", "decent", "tricky"]);
+
 // 起動時に法令DBが空でないか確認（空ならエラーで気付けるように）
 try {
   const { n } = db.query("SELECT COUNT(*) AS n FROM regulations").get() as {
@@ -55,13 +63,18 @@ try {
 
 const app = new Hono();
 
-app.get("/", (c) =>
+// フロントエンド UI
+app.get("/", (c) => c.html(indexHtml));
+
+// API 情報（プログラムからの利用向け）
+app.get("/api", (c) =>
   c.json({
     name: "PoliCheck",
     description:
       "プライバシーポリシーを個人情報保護法に照らして一次点検するAPI（法的助言ではありません）",
     endpoints: {
       "POST /check": "{ policyText: string } → 4点セットの点検結果",
+      "GET /sample/:name": "検証用サンプル（bad/decent/tricky）",
       "GET /disclaimer": "免責事項",
       "GET /healthz": "ヘルスチェック",
     },
@@ -69,6 +82,15 @@ app.get("/", (c) =>
 );
 
 app.get("/healthz", (c) => c.text("ok"));
+
+// 検証用サンプルの取得（UI のサンプル読込用）
+app.get("/sample/:name", async (c) => {
+  const name = c.req.param("name");
+  if (!SAMPLES.has(name)) return c.json({ error: "unknown sample" }, 404);
+  const f = Bun.file(`samples/${name}_policy.md`);
+  if (!(await f.exists())) return c.json({ error: "not found" }, 404);
+  return c.text(await f.text());
+});
 
 app.post("/check", async (c) => {
   const ip =
