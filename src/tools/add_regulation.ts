@@ -1,5 +1,6 @@
 import { db } from "../db/db";
 import { embedTexts } from "../rag/embed";
+import { invalidateRegulationCache } from "../rag/search";
 import type { LawArticle, LawData } from "../rag/fetch_law";
 
 /**
@@ -118,6 +119,8 @@ export async function addRegulation(): Promise<number> {
     },
   );
   replaceAll(chunks.map((chunk, i) => ({ chunk, vec: vectors[i]! })));
+  // 同一プロセスで検索を回している場合に備え、条文キャッシュを破棄
+  invalidateRegulationCache();
 
   const { n } = db
     .query("SELECT COUNT(*) AS n FROM regulations")

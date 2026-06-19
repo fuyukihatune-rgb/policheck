@@ -31,6 +31,11 @@ interface CachedChunk {
 
 let cache: CachedChunk[] | null = null;
 
+/** 条文キャッシュを破棄する。法令を再投入(add_regulation)した後に呼び、古い検索結果を防ぐ。 */
+export function invalidateRegulationCache(): void {
+  cache = null;
+}
+
 /** D1 から全チャンクを読み、埋め込みをパースしてメモリに載せる（初回のみ）。 */
 function loadChunks(): CachedChunk[] {
   if (cache) return cache;
