@@ -18,15 +18,34 @@ bun run src/rag/fetch_law.ts
 bun run src/tools/add_regulation.ts
 ```
 
-DB が構築済みかは次で確認できる（`regulations 205行 / 185条` 程度）：
+---
+
+## 本番直前のプリフライト（推奨）
+
+登壇直前に1コマンドで全系統（鍵・法令DB・サンプル・Gemini/LLM疎通）を確認する。
 
 ```bash
-bun -e 'import {db} from "./src/db/db"; console.log(db.query("SELECT COUNT(*) n FROM regulations").get())'
+bun run preflight
+```
+
+すべて緑（🟢）ならデモ開始。赤があればその項目を解消してから始める。
+
+```
+✅ GEMINI_API_KEY（埋め込み用）   設定済み
+✅ ANTHROPIC_API_KEY（LLM用）     設定済み
+✅ 法令DB（regulations）          205行 / 185条
+✅ サンプル bad/decent/tricky     あり
+✅ Gemini埋め込み疎通             768次元を取得
+✅ LLM疎通                        応答OK
+🟢 すべて緑。デモを開始できます。
 ```
 
 ---
 
 ## デモ本番（この順で実演）
+
+> 所要時間の目安: `check` 1本あたり **約20〜40秒**（論点6つ×条文検索＋LLM照合）。
+> 思考プロセスのログが流れるので「待ち時間」ではなく「動いている様子」を見せられる。`--quiet` で結果のみに短縮も可。
 
 ```bash
 # ① 穴だらけのポリシー → 6件すべて「高」。論点分割→検索→照合の思考プロセスが流れる
@@ -89,3 +108,13 @@ bun run mcp
 
 - 出力は AI による一次点検であり、法的助言ではない。最終確認は専門家・一次情報（e-Gov等）で行うこと。
 - 参照する法令データには取得日・改正版ID（`law_revision_id`）を記録している。改正に追従する場合は `fetch_law.ts` → `add_regulation.ts` を再実行する。
+
+---
+
+## うまく動かない時（フォールバック）
+
+- まず `bun run preflight` で原因切り分け（赤の項目を見る）。
+- **LLM疎通が赤（401）**: `.env` の `ANTHROPIC_API_KEY` が失効/未更新。鍵をローテーションした場合は `.env` を更新する。
+- **Gemini疎通が赤**: 無料枠の分間レート上限の可能性。数十秒待って再実行（埋め込み層はリトライ実装済み）。
+- **法令DBが空**: `bun run src/tools/add_regulation.ts` を実行（約3分）。
+- **本番でAPIが不安定なとき**: `--quiet` で結果のみ表示にし、説明は口頭で補う。各サンプルの期待挙動は上表のとおり。
