@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+.wrangler/
+*.sqlite
+*.db
+dist/
+開発工程.md
+セットアップ手順.md
