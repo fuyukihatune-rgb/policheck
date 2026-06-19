@@ -195,6 +195,8 @@ bun run check samples/bad_policy.md
 
 ## 7. 使い方・試し方
 
+> 実演手順は **[DEMO.md](./DEMO.md)** にまとめている。
+
 `samples/` に検証用ポリシーを同梱：
 
 - **`bad_policy.md`** — 穴だらけ（第三者提供・開示請求窓口の記載なし、利用目的が曖昧）→ 検出を確認
