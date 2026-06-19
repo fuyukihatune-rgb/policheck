@@ -3,6 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "check": "bun run src/cli.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

@@ -139,11 +139,21 @@
 ## 6. セットアップ
 
 ```bash
-# （実装後に確定）
 bun install
-# .env に GEMINI_API_KEY を設定
-# 法令データの投入（e-Gov 個人情報保護法）
-# MCPサーバー起動 → Claudeへの接続
+
+# .env に APIキーを設定（リポジトリにはコミットしない）
+#   GEMINI_API_KEY=...        # 埋め込み(RAG)用。必須
+#   ANTHROPIC_API_KEY=...     # LLM推論用。必須（LLM_PROVIDER=anthropic 既定）
+#   ANTHROPIC_MODEL=claude-sonnet-4-6   # 任意（既定値）
+
+# 法令データの取得（e-Gov 個人情報保護法 → data/personal_info_law.json）
+bun run src/rag/fetch_law.ts
+
+# 条文をチャンク化・埋め込み・DB保存（一度だけ）
+bun run src/tools/add_regulation.ts
+
+# 一次点検を実行
+bun run check samples/bad_policy.md
 ```
 
 ---
@@ -157,11 +167,20 @@ bun install
 - **`tricky_policy.md`** — 一見揃っているが越境移転の記載が抜けている → 地味な穴の検出
 
 ```bash
-# （実装後に確定）
-bun run check samples/bad_policy.md
+bun run check samples/bad_policy.md      # 検出を確認
+bun run check samples/decent_policy.md    # 黙ることを確認
+bun run check samples/tricky_policy.md    # 地味な穴の検出を確認
 ```
 
-> 「出すべき時に出し、出すべきでない時は黙る」を `decent_policy.md` で確認できるようにする（誤検出乱発は法務ツールの信頼を損なうため）。
+実測の挙動（`claude-sonnet-4-6`）：
+
+| サンプル | 提示件数 | 内容 |
+|---|---|---|
+| `bad_policy.md` | **6件（すべて高）** | 利用目的/第三者提供/越境移転/開示請求/問い合わせ窓口/安全管理 の中核欠如を検出 |
+| `decent_policy.md` | **0件** | 一通り揃っているため黙る（過検出しない） |
+| `tricky_policy.md` | **5件（最上位2件が高=越境移転）** | 一見揃うが第28条の越境移転が抜けている点を主軸に検出 |
+
+> 「出すべき時に出し、出すべきでない時は黙る」── 件数と重大度で `bad`／`decent`／`tricky` を明確に区別できる。誤検出乱発は法務ツールの信頼を損なうため、照合プロンプトで「中核的義務の欠落のみを挙げ、付随的な記載改善は挙げない」基準を課し、`low` 重大度は一次点検の閾値未満として非表示にしている。
 
 ---
 

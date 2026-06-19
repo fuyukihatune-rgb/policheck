@@ -191,8 +191,15 @@ export async function checkPolicy(
     return v.valid;
   });
 
+  // 安全網: low 重大度は一次点検の閾値未満として除外（過検出抑制・「黙るべき時は黙る」）
+  const surfacedRisks = validRisks.filter((r) => r.severity !== "low");
+  const droppedLow = validRisks.length - surfacedRisks.length;
+  if (droppedLow > 0) {
+    log(verbose, `  ℹ low重大度 ${droppedLow} 件を閾値未満として非表示`);
+  }
+
   const result: CheckPolicyResult = {
-    risks: validRisks,
+    risks: surfacedRisks,
     disclaimer: DISCLAIMER_FOOTER,
   };
   // 最終形を全体検証（安全網）
@@ -204,7 +211,7 @@ export async function checkPolicy(
   }
   log(
     verbose,
-    `✅ 点検完了: リスク ${validRisks.length} 件（除外 ${allRisks.length - validRisks.length} 件）`,
+    `✅ 点検完了: 提示 ${surfacedRisks.length} 件（検証除外 ${allRisks.length - validRisks.length} 件 / low非表示 ${droppedLow} 件）`,
   );
   return finalCheck.value!;
 }
