@@ -249,6 +249,18 @@ bun run check samples/bad_policy.md
 
 > 実演手順は **[DEMO.md](./DEMO.md)** にまとめている。
 
+### ブラウザですぐ試す（デプロイ済み・インストール不要）
+
+**🔗 https://policheck.onrender.com/**
+
+ポリシー本文を貼り付けて「一次点検する」を押すと、4点セットの結果が表示されます。
+サンプル（穴だらけ／標準的／ひっかけ）もボタンで読み込めます。
+
+> Render Free のため初回アクセスはコールドスタート（数十秒）。点検自体も20〜40秒かかります。
+> API で叩く場合：`curl -X POST https://policheck.onrender.com/check -H 'content-type: application/json' -d '{"policyText":"..."}'`
+
+### ローカルで試す
+
 `samples/` に検証用ポリシーを同梱：
 
 - **`bad_policy.md`** — 穴だらけ（第三者提供・開示請求窓口の記載なし、利用目的が曖昧）→ 検出を確認
