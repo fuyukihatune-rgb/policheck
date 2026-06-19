@@ -7,7 +7,8 @@
     "check": "bun run src/cli.ts",
     "mcp": "bun run src/mcp/server.ts",
     "serve": "bun run src/server.ts",
-    "preflight": "bun run src/preflight.ts"
+    "preflight": "bun run src/preflight.ts",
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest"
