@@ -93,6 +93,24 @@
 
 本アプリの中心は、単発のRAG呼び出しではなく **Function Calling / Tool Use ループを自前実装したエージェント** です。**論点ごとに検索を回す**ため、ループが構造的に必然となります。
 
+```mermaid
+flowchart TD
+    U["利用者（ポリシー文）"] --> ENTRY
+    subgraph ENTRY["エントリ（同一エージェントを共有）"]
+      CLI["CLI<br/>bun run check"]
+      MCP["MCP サーバー<br/>stdio"]
+      HTTP["HTTP サーバー<br/>Hono / POST /check"]
+    end
+    ENTRY --> AGENT["check_policy エージェント<br/>論点分割 → 検索 → 照合 → 再検索ループ"]
+    AGENT -->|"中核6論点＋固有論点を評価"| SEARCH["search_regulation"]
+    SEARCH --> RAG["RAG<br/>クエリ埋め込み → 自前コサイン類似度"]
+    RAG --> DB[("DB SQLite/D1<br/>条文＋埋め込み")]
+    RAG -->|"埋め込み"| GEMINI["Gemini Embedding API"]
+    AGENT -->|"論点分割・照合・再検索判断"| CLAUDE["Anthropic Claude API"]
+    AGENT --> SCHEMA["出力スキーマ検証<br/>断定語・幻覚条文を拒否 / low除外"]
+    SCHEMA --> OUT["4点セット＋免責フッター"]
+```
+
 ```
 [Claude チャットUI]
       │  (MCP Apps)
@@ -305,7 +323,7 @@ Claude Desktop の `claude_desktop_config.json` に登録する例：
   - 無料枠レート制限を埋め込み層・LLM層の双方にクライアント側で実装（理由：Geminiの分間/日次クォータ）
   - **LLMをGemini→Anthropicへ転換**：日次リクエスト上限でエージェントが完走できず、`LLM_PROVIDER`で切替可能なプロバイダ抽象化を導入（埋め込みはGeminiのまま）
   - **過検出のチューニング**：初回は3サンプルとも13〜15件と過検出 → 照合プロンプトに「中核的義務の欠落のみ」基準＋low非表示を入れ、bad=6/decent=0/tricky=5へ
-- 開発の詳細な時系列は `PROGRESS.md`、詰まり所は本READMEの「8. 詰まった点」に集約
+- 設計判断の背景は **[DEVELOPMENT.md](./DEVELOPMENT.md)**、詰まり所は本READMEの「8. 詰まった点」に集約
 
 ---
 
